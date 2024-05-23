@@ -1,0 +1,329 @@
+---
+author: "Kurtis Crowe"
+date: "2023-02-26"
+objective: "The present study seeks to investigate potential correlations between participants who have smoked at least 100 cigarettes throughout their lifetime and their responses to questions Q10 through Q15. Specifically, this study will examine whether there exists any statistically significant relationship between participants' smoking history and their reported physical health (PHYSHLTH), mental health (MENTHLTH), and asthma status (ASTHMA3). By exploring these associations, this study aims to provide valuable insights into the potential impact of smoking on various health indicators, and to inform public health initiatives aimed at reducing the prevalence of smoking and its associated health risks."
+
+---
+
+
+```{r}
+rm(list = ls())
+```
+
+```{r}
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(lm.beta))
+```
+
+```{r}
+brf <- read_csv("BRFSS2015_650.csv")
+```
+
+```{r}
+head(brf)
+```
+
+```{r}
+# Remove NA values from GENHLTH
+brf_no_na <- na.omit(brf["GENHLTH"])
+
+# Count number of rows with a value of 1 in GENHLTH as listed in the codebook report
+Q1 = sum(brf_no_na$GENHLTH == 1)
+
+
+```
+```{r}
+#CVDSTRK3 = have you ever had a stroke? #NUMWOMEN = number of women in household
+
+# Filter for rows with CVDSTRK3 equal to 1
+brf_cvd <- subset(brf, CVDSTRK3 == 1)
+
+# Find the maximum value in NUMWOMEN
+max_numwomen <- max(brf_cvd$NUMWOMEN, na.rm = TRUE)
+Q2 <- max_numwomen
+
+Q2
+```
+```{r}
+
+
+Q3 <- brf %>%
+  filter(CRGVPERS %in% c(1, 2)) %>%
+  mutate(MENTHLTH = case_when(
+    MENTHLTH %in% 1:30 ~ MENTHLTH,
+    MENTHLTH == 88 ~ 0,
+    MENTHLTH == 77 ~ NA_real_,
+    MENTHLTH == 99 ~ NA_real_
+  )) %>%
+  group_by(CRGVPERS) %>%
+  summarize(
+    mean_health = mean(MENTHLTH, na.rm = TRUE),
+    sd_health = sd(MENTHLTH, na.rm = TRUE)
+  ) %>%
+  mutate(across(c(mean_health, sd_health), round, 2))
+
+
+Q3
+```
+```{r}
+data_pa <- brf %>%
+  filter(`_STATE`== 42)
+
+med.diab.age <- data_pa %>%
+  filter(!is.na(DIABAGE2) & DIABAGE2 >= 1 & DIABAGE2 <= 97) %>%
+  summarize(median_age = median(DIABAGE2))
+
+Q4 = med.diab.age
+
+
+```
+
+```{r}
+#MENTHLTH column with value of 30 for 30 days. MARITAL column for marital status
+
+# Filter data for MENTHLTH equal to 30
+data_filtered <- brf %>% 
+  filter(MENTHLTH <= 30)
+
+# Fit linear regression model to predict days of poor mental health based on marital status
+model <- lm(MENTHLTH ~ MARITAL, data = data_filtered)
+
+
+# Predict the number of days
+predicted_days <- predict(model, newdata = data.frame(MARITAL = unique(data_filtered$MARITAL)))
+
+# Summarize the model and assign to Q5
+Q5 <- predicted_days
+Q5
+```
+```{r}
+Q6 <- data_filtered %>%
+  group_by(MARITAL) %>%
+  summarise(mean_mental = round(mean(MENTHLTH), 2))
+
+Q6
+```
+
+```{r}
+#CVDSTRK3 values 1 and 2 for those who did and did not have a stroke. HLTHPLN1 value 2 is no
+Q7 <- brf %>%
+  filter(CVDSTRK3 %in% c(1, 2)) %>%
+  filter(HLTHPLN1 == 2) %>%
+  mutate(MENTHLTH = case_when(
+    MENTHLTH %in% 1:30 ~ MENTHLTH,
+    MENTHLTH == 88 ~ 0,
+    MENTHLTH == 77 ~ NA_real_,
+    MENTHLTH == 99 ~ NA_real_
+  )) %>%
+  group_by(CVDSTRK3) %>%
+  summarise(
+    mean_mental = round(mean(MENTHLTH, na.rm = TRUE), 2),
+    sd_mental = round(sd(MENTHLTH, na.rm = TRUE), 2)
+  )
+
+Q7
+
+```
+
+```{r}
+#Q8: Run an ANOVA comparing EXRACT11 in the past month by marital status, and assign the TukeyHSD post-hoc test to Q8. (You may need to look up how to do this in R. Note: The general instructions say to round all output but the TukeyHSD function output is not able to be rounded.)
+
+
+brfslice <- brf %>%
+  filter(!is.na(MARITAL), !is.na(EXRACT11)) %>%
+  select(MARITAL, EXRACT11)
+
+# Run ANOVA
+brfslice$MARITAL <- factor(brfslice$MARITAL, labels = c("1", "2", "3", "4", "5", "6", "9"))
+
+fit <- aov(EXRACT11 ~ MARITAL, data = brfslice)
+
+#Assign to Q8 
+Q8 <- TukeyHSD(fit)
+
+Q8
+
+```
+```{r}
+#Q9 ALCDAY5 is the amount of drinks per week| SEX column value 1 is men| Extract11 is the type of activities
+
+# Filter data to include only men and ALCDAY5 values between 101 and 199
+
+
+Q9 <- brf %>%
+  filter(SEX == 1, ALCDAY5 <= 199) %>%
+  mutate(EXRACT11 = ifelse(EXRACT11 == 98, 77, EXRACT11)) %>% # update 98 to 77
+  group_by(EXRACT11) %>%
+  summarize(variance = var(ALCDAY5, na.rm = TRUE)) %>%
+  arrange(desc(variance)) %>%
+  head(6) %>%
+  mutate(variance = round(variance, 2))
+
+Q9
+
+
+```
+
+```{r}
+#The present study seeks to investigate potential correlations between participants who have smoked at least 100 cigarettes throughout their lifetime and their responses to questions Q10 through Q15. Specifically, this study will examine whether there exists any statistically significant relationship between participants' smoking history and their reported physical health (PHYSHLTH), mental health (MENTHLTH), and asthma status (ASTHMA3). By exploring these associations, this study aims to provide valuable insights into the potential impact of smoking on various health indicators, and to inform public health initiatives aimed at reducing the prevalence of smoking and its associated health risks.
+```
+
+
+```{r}
+#We want to use SMOKE100 with a value of 1 to indicate to use data where respondents smoked at least 100 cigarettes their entire life | original 198554 x 37
+#value 2 = no to smoking
+#value 7 = dont know/ unsure
+#value 9 = Refused to answer
+#blank/NA = not asked or missing
+Q10a <- table(brf$SMOKE100)
+Q10a
+```
+
+
+```{r}
+#We have assigned only values of 1 - 30 for PHYSHLTH to indicate that a respondent physical health was not good during the past 30 days
+#value 77 = Dont know, unsure
+#value 88 = None
+#value 99 = refused
+#blank/NA = Not asked/missing
+Q10b <- table(brf$PHYSHLTH)
+Q10b
+```
+```{r}
+#We have assigned MENTHLTH with values of 1 - 30 to Q10c to indicate during the past 30 days a respondents mental health was not good.
+#value 77: Dont know
+#value 88: None
+#Value 99: Refused
+#there are no NA Values
+Q10c <- table(brf$MENTHLTH)
+Q10c
+
+
+
+```
+
+
+```{r}
+#We have assigned ASTHMA3 with a value of 1 to Q10d to show us only respondents who have been told they have/had asthma in their lives
+#value 2: No to ever having asthma
+#value 7: Dont know / unsure
+#value 9: Refused
+#There are no NA Values
+Q10d <-table(brf$ASTHMA3)
+Q10d
+
+```
+
+
+```{r}
+#I'm using the quantile function with an upper bound of .9985 and lower of .0015 because about 99.7% of the data falls within three standard deviations of the mean. Therefore, any observations falling outside the range of the 0.15th percentile (lower bound) and the 99.85th percentile (upper bound) may be considered outliers.
+
+# Filtering only the data I want. See Q10 for variable breakdown
+Q11a <- filter(brf, ASTHMA3 == 1 & PHYSHLTH >= 1 & PHYSHLTH <= 30 & MENTHLTH >= 1 & MENTHLTH <=30 & (SMOKE100 == 1 | SMOKE100 == 2))
+
+
+#create the scope of upper/lower bound
+Q11b <- quantile(Q11a$ASTHMA3, c(0.0015, 0.9985), na.rm = TRUE)
+Q11c <- quantile(Q11a$PHYSHLTH, c(0.0015, 0.9985), na.rm = TRUE)
+Q11d <- quantile(Q11a$MENTHLTH, c(0.0015, 0.9985), na.rm = TRUE)
+Q11e <- quantile(Q11a$SMOKE100, c(0.0015, 0.9985), na.rm = TRUE)
+
+#identify and place outliers in variables
+Q11_outliers_asthma <- which(Q11a$ASTHMA3 < Q11b[1] | Q11a$ASTHMA3 > Q11b[2])
+Q11_outliers_physhlth <- which(Q11a$PHYSHLTH < Q11c[1] | Q11a$PHYSHLTH > Q11c[2])
+Q11_outliers_menthlth <- which(Q11a$MENTHLTH < Q11d[1] | Q11a$MENTHLTH > Q11d[2])
+Q11_outliers_smoke100 <- which(Q11a$SMOKE100 < Q11e[1] | Q11a$SMOKE100 > Q11e[2])
+
+#we have printed the new variables that would contain our outliers. Currently no outliers were identified
+Q11_outliers_smoke100
+Q11_outliers_menthlth
+Q11_outliers_physhlth
+Q11_outliers_asthma
+
+Q11a
+```
+SMOKE100, PHYSHLTH, ASTHMA3, MENTHLTH
+
+```{r}
+#Creating a bar graph to visualize Mental differences between respondents who have smoked 100 cigarettes vs none. As shown on the visual, Mental state is reasonably worse for people who have smoked.
+Q12a <- ggplot(Q11a, aes(x = SMOKE100, y = MENTHLTH)) +
+        geom_bar(stat = "summary", fun = "mean", width = 0.6, fill = "blue") +
+        theme_classic()
+
+
+#Like Mental State, as shown in the visual, physical health was noticeably worse for those who have smoked vs non-smokers. 
+Q12b <- ggplot(Q11a, aes(x = SMOKE100, y = PHYSHLTH)) +
+        geom_bar(stat = "summary", fun = "mean", width = 0.6, fill = "blue") +
+        theme_classic()
+
+
+
+#This visual shows that there are more observation of people who have been diagnosed with Asthma who have smoked vs not smoked
+Q12c <- ggplot(Q11a, aes(x = SMOKE100, fill = ASTHMA3)) +
+  geom_bar()
+
+
+```
+
+```{r}
+#Run basic descriptive statistics. Be sure to address each variable.
+
+#Using the summary function we can get the mean, median, and standard deviation of our variables.
+
+#ASTHMA3: The minimum value is 1, indicating that all observations in this dataset have been diagnosed with asthma. The median and mean are also 1, indicating that the majority of the observations have asthma because we wanted to see the correlation between people who have had asthma also smoked cigarettes
+
+#PHYSHLTH: The minimum value is 1 and the maximum value is 30, indicating that the observed physical health ranges from poor to excellent. The median and mean are both around 14, indicating that the physical health of the observations is generally closer to poor than excellent.
+
+#MENTHLTH: The minimum value is 1 and the maximum value is 30, indicating that the observed mental health ranges from poor to excellent. The median is 10 and the mean is around 14, indicating that the mental health of the observations is generally closer to excellent than poor.
+
+#SMOKE100: The minimum value is 1 and the maximum value is 2, indicating that the observations are either smokers or non-smokers. The mean is 1.453, indicating that the majority of the observations are non-smokers.
+
+
+Q13a <- summary(Q11a[c("ASTHMA3", "PHYSHLTH", "MENTHLTH", "SMOKE100")])
+Q13a
+
+#Performing a cor function
+
+# Subset the data to include only the four variables of interest
+Q13b <- Q11a[, c("ASTHMA3", "PHYSHLTH", "MENTHLTH", "SMOKE100")]
+
+# Calculate the correlation matrix
+#the correlation between PHYSHLTH and MENTHLTH is 0.4226, which suggests a moderate positive relationship between these two variables.
+Q13c <- cor(Q13b)
+
+
+#Create a frequency table
+#The most common value of PHYSHLTH for individuals with ASTHMA3 = YES, MENTHLTH = NO, and SMOKE100 = NO, which accounts for 24.8% of the total count for this subgroup.
+Q13d <- table(Q13b)
+
+
+```
+```{r}
+#Q14: Finally, run an appropriate regression predicting one of those variables. Identify the best model.
+#We must change the type of data as regression model does not take categorical values:
+Q13b$SMOKE_BIN <- ifelse(Q13b$SMOKE100 == 1, 1, 2)
+
+#fit to model
+
+
+Q14a <- lm(PHYSHLTH ~ SMOKE100, data = Q13b)
+Q14b <- lm(MENTHLTH ~ SMOKE100, data = Q13b)
+Q14c <- lm(ASTHMA3 ~ SMOKE100, data = Q13b)
+
+
+
+#Calculate the best model by performing an AIC
+# Calculate AIC for each model
+Q15d <- AIC(Q14a, Q14b, Q14c)
+
+
+#Conclusion: The linear regression model Q14b showed a statistically significant relationship between smoking at least 100 cigarettes throughout lifetime and mental health (MENTHLTH). The coefficient estimate for SMOKE100 was negative (-0.6306) with a p-value of less than 0.001, indicating that individuals who smoke at least 100 cigarettes are likely to have lower mental health scores compared to non-smokers. Therefore, our conclusion is that smoking at least 100 cigarettes can negatively impact mental health and increase the risk of mental health problems. However, it's important to note that this conclusion is based on the data collected from participants who reported having smoked at least 100 cigarettes throughout their lifetime. Additionally, this conclusion is limited to the specific population in the study and may not be generalizable to other populations.
+
+
+
+
+``` 
+
+
+
+
