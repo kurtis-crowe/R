@@ -1,4 +1,4 @@
-# Smokers correlation on various health indicators
+# Smoking History and Health: Exploring Correlations Between Lifetime Smoking and Health Indicators
 
 ## Objective
 
